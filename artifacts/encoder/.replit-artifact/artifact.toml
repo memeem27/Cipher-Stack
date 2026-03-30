@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Message Encoder"
+version = "1.0.0"
+id = "artifacts/encoder"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23970
+
+[services.development]
+run = "pnpm --filter @workspace/encoder run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/encoder", "run", "build" ]
+publicDir = "artifacts/encoder/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23970"
+BASE_PATH = "/"
