@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Message Encoder</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+:root {
+  --bg: #0d0f18;
+  --bg-surface: #151825;
+  --bg-card: #1a1e2e;
+  --border: #262d4a;
+  --border-subtle: #1c2238;
+  --text-primary: #e8ecf8;
+  --text-secondary: #8892b8;
+  --text-muted: #4d5a80;
+  --accent: #6c8ef5;
+  --green: #4ade80;
+  --green-dim: rgba(74,222,128,0.12);
+  --font-mono: "JetBrains Mono","Fira Code",ui-monospace,monospace;
+  --font-sans: "Inter",system-ui,sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body { background: var(--bg); color: var(--text-primary); font-family: var(--font-sans); min-height: 100vh; -webkit-font-smoothing: antialiased; }
+.page { max-width: 1200px; margin: 0 auto; padding: 0 24px 80px; }
+.page-header { padding: 36px 0 24px; }
+.logo-row { display: flex; align-items: center; gap: 14px; }
+.logo-icon { width: 42px; height: 42px; border-radius: 11px; background: linear-gradient(135deg,#3d5aff,#7c5fff); display: flex; align-items: center; justify-content: center; color: white; flex-shrink: 0; box-shadow: 0 6px 20px rgba(108,90,255,0.3); }
+.site-title { font-size: 1.4rem; font-weight: 700; color: var(--text-primary); letter-spacing: -0.03em; line-height: 1.1; }
+.site-subtitle { font-size: 0.78rem; color: var(--text-muted); margin-top: 3px; }
+.pipeline-row { display: grid; grid-template-columns: 260px 32px 1fr 32px 260px; gap: 0; align-items: stretch; margin-bottom: 32px; min-height: 280px; }
+.flow-arrow { display: flex; align-items: center; justify-content: center; color: var(--text-muted); }
+.io-panel { display: flex; flex-direction: column; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.panel-label { display: flex; align-items: center; gap: 7px; padding: 10px 14px 8px; font-size: 0.67rem; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-muted); border-bottom: 1px solid var(--border-subtle); }
+.panel-dot { width: 7px; height: 7px; border-radius: 50%; transition: background 0.2s; }
+.panel-hint { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--text-muted); opacity: 0.6; }
+.io-textarea { flex: 1; width: 100%; padding: 12px 14px; background: transparent; border: none; outline: none; color: var(--text-primary); font-family: var(--font-mono); font-size: 0.84rem; resize: none; line-height: 1.7; }
+.io-textarea::placeholder { color: var(--text-muted); }
+.io-output { flex: 1; padding: 12px 14px; overflow-y: auto; word-break: break-all; }
+.output-code { font-family: var(--font-mono); font-size: 0.84rem; color: #a5b4fc; line-height: 1.7; white-space: pre-wrap; }
+.output-placeholder { color: var(--text-muted); font-size: 0.8rem; font-style: italic; }
+.panel-footer { display: flex; align-items: center; justify-content: space-between; padding: 7px 12px 9px; border-top: 1px solid var(--border-subtle); }
+.char-count { font-size: 0.7rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.clear-btn { font-size: 0.7rem; color: var(--text-muted); background: none; border: none; cursor: pointer; padding: 2px 7px; border-radius: 5px; transition: color 0.15s, background 0.15s; }
+.clear-btn:hover { color: var(--text-primary); background: var(--border); }
+.copy-btn { display: flex; align-items: center; gap: 5px; font-size: 0.7rem; font-weight: 500; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-surface); color: var(--text-secondary); cursor: pointer; transition: all 0.15s; }
+.copy-btn:hover:not(.disabled) { color: var(--text-primary); border-color: var(--accent); background: rgba(108,142,245,0.1); }
+.copy-btn.copied { color: var(--green); border-color: var(--green); background: var(--green-dim); }
+.copy-btn.disabled { opacity: 0.35; cursor: default; }
+.chain-zone { background: #0e1120; border: 2px dashed var(--border); border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; transition: border-color 0.2s, background 0.2s; position: relative; }
+.chain-zone.drop-active { border-color: var(--accent); background: rgba(108,142,245,0.04); }
+.chain-zone:not(.empty) { border-style: solid; border-color: var(--border-subtle); }
+.chain-zone-label { display: flex; align-items: center; gap: 6px; padding: 9px 14px 7px; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); border-bottom: 1px solid var(--border-subtle); }
+.chain-count { margin-left: 4px; background: var(--accent); color: white; font-size: 0.6rem; font-weight: 700; padding: 1px 6px; border-radius: 20px; }
+.chain-empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 24px; color: var(--text-muted); font-size: 0.82rem; text-align: center; }
+.chain-empty-sub { font-size: 0.72rem; opacity: 0.6; }
+.chain-blocks { flex: 1; overflow-y: auto; padding: 8px 8px 4px; display: flex; flex-direction: column; gap: 0; }
+.chain-end-drop { height: 28px; border-radius: 6px; transition: background 0.15s, height 0.15s; margin-top: 4px; }
+.chain-end-drop.active { background: rgba(108,142,245,0.1); height: 36px; border: 2px dashed var(--accent); }
+.chain-slot { position: relative; }
+.chain-slot.drop-before::before { content: ""; display: block; height: 3px; border-radius: 2px; background: var(--accent); box-shadow: 0 0 8px var(--accent); margin-bottom: 4px; }
+.chain-slot.drop-after::after { content: ""; display: block; height: 3px; border-radius: 2px; background: var(--accent); box-shadow: 0 0 8px var(--accent); margin-top: 4px; }
+.chain-block-item { position: relative; background: var(--c); border-radius: 6px; margin-bottom: 2px; cursor: grab; transition: filter 0.15s, box-shadow 0.15s; box-shadow: 0 2px 8px rgba(0,0,0,0.4); user-select: none; }
+.chain-block-item:active { cursor: grabbing; }
+.chain-block-item:hover { filter: brightness(1.08); }
+.chain-tab { position: absolute; top: -8px; left: 20px; width: 28px; height: 10px; background: var(--c); border-radius: 4px 4px 0 0; filter: brightness(0.85); }
+.chain-notch { position: absolute; bottom: -8px; left: 20px; width: 28px; height: 10px; background: var(--c); border-radius: 0 0 4px 4px; z-index: 1; filter: brightness(0.85); }
+.chain-block-body { display: flex; align-items: center; gap: 8px; padding: 8px 10px 8px 8px; min-height: 44px; }
+.chain-drag-handle { color: rgba(255,255,255,0.5); flex-shrink: 0; display: flex; align-items: center; cursor: grab; }
+.chain-block-name { font-size: 0.8rem; font-weight: 700; color: white; letter-spacing: 0.01em; white-space: nowrap; }
+.chain-param { display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.2); border-radius: 6px; padding: 2px 6px; flex-shrink: 0; }
+.chain-param-label { font-size: 0.68rem; color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+.chain-param-select, .chain-param-number, .chain-param-text { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; color: white; font-family: var(--font-sans); font-size: 0.78rem; font-weight: 600; outline: none; cursor: pointer; transition: background 0.15s; }
+.chain-param-select { padding: 2px 20px 2px 6px; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='white' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 5px center; }
+.chain-param-select:focus, .chain-param-number:focus, .chain-param-text:focus { background-color: rgba(255,255,255,0.22); }
+.chain-param-number { padding: 2px 6px; width: 56px; }
+.chain-param-text { padding: 2px 6px; width: 72px; }
+.mode-toggle { display: flex; align-items: center; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.15); border-radius: 5px; padding: 0; height: 22px; cursor: pointer; overflow: hidden; flex-shrink: 0; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.05em; transition: box-shadow 0.15s; }
+.mode-toggle:hover:not([disabled]) { box-shadow: 0 0 0 2px rgba(255,255,255,0.2); }
+.mode-toggle[disabled] { opacity: 0.4; cursor: not-allowed; }
+.mode-toggle-enc, .mode-toggle-dec { padding: 0 7px; height: 100%; display: flex; align-items: center; transition: background 0.15s, color 0.15s; color: rgba(255,255,255,0.4); }
+.mode-toggle.enc .mode-toggle-enc { background: rgba(255,255,255,0.2); color: white; }
+.mode-toggle.dec .mode-toggle-dec { background: rgba(0,0,0,0.35); color: #fbbf24; }
+.mode-toggle.dec .mode-toggle-enc { color: rgba(255,255,255,0.3); }
+.mode-toggle.enc .mode-toggle-dec { color: rgba(255,255,255,0.3); }
+.chain-remove-btn { margin-left: auto; flex-shrink: 0; background: rgba(0,0,0,0.2); border: none; color: rgba(255,255,255,0.5); cursor: pointer; border-radius: 5px; padding: 4px 6px; display: flex; align-items: center; transition: background 0.15s, color 0.15s; }
+.chain-remove-btn:hover { background: rgba(239,68,68,0.3); color: #fca5a5; }
+.chain-preview { display: flex; align-items: center; gap: 6px; padding: 5px 10px 7px; background: rgba(0,0,0,0.25); border-top: 1px solid rgba(255,255,255,0.08); border-radius: 0 0 6px 6px; font-family: var(--font-mono); font-size: 0.68rem; overflow: hidden; }
+.chain-preview-in { color: rgba(255,255,255,0.4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 30%; }
+.chain-preview-arrow { color: rgba(255,255,255,0.3); flex-shrink: 0; }
+.chain-preview-out { color: rgba(255,255,255,0.75); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+.palette-section { display: flex; flex-direction: column; gap: 16px; margin-top: 8px; }
+.palette-header { margin-bottom: -4px; }
+.palette-title { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-muted); }
+.palette-hint { font-size: 0.7rem; color: var(--text-muted); opacity: 0.5; margin-top: 2px; }
+.palette-group { display: flex; flex-direction: column; gap: 8px; }
+.palette-group-label { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); padding-left: 2px; }
+.palette-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.palette-block { position: relative; display: inline-flex; align-items: center; height: 36px; padding: 6px 16px 0 20px; border-radius: 5px; border: none; cursor: grab; font-family: var(--font-sans); font-size: 0.78rem; font-weight: 700; color: white; background: var(--c); transition: transform 0.1s, box-shadow 0.15s, filter 0.15s; box-shadow: 0 3px 0 color-mix(in srgb, var(--c) 70%, black), 0 3px 10px rgba(0,0,0,0.3); clip-path: polygon(0% 22%,12% 22%,12% 0%,26% 0%,26% 22%,100% 22%,100% 78%,88% 78%,88% 100%,74% 100%,74% 78%,0% 78%); user-select: none; }
+.palette-block:hover { filter: brightness(1.12); transform: translateY(-2px); box-shadow: 0 5px 0 color-mix(in srgb, var(--c) 70%, black), 0 8px 16px rgba(0,0,0,0.4); }
+.palette-block:active { transform: translateY(1px); cursor: grabbing; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+@media (max-width: 900px) {
+  .pipeline-row { grid-template-columns: 1fr; grid-template-rows: auto auto auto auto auto; }
+  .io-panel { min-height: 140px; }
+  .chain-zone { min-height: 200px; }
+  .flow-arrow { transform: rotate(90deg); height: 28px; }
+  .site-title { font-size: 1.2rem; }
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useMemo, useRef, useCallback } = React;
+
+// ── Base32 ──
+const B32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+function base32Encode(input) {
+  const bytes = new TextEncoder().encode(input);
+  let bits = 0, value = 0, out = "";
+  for (const byte of bytes) { value = (value << 8) | byte; bits += 8; while (bits >= 5) { out += B32[(value >>> (bits-5)) & 31]; bits -= 5; } }
+  if (bits > 0) out += B32[(value << (5-bits)) & 31];
+  while (out.length % 8 !== 0) out += "=";
+  return out;
+}
+function base32Decode(input) {
+  const s = input.toUpperCase().replace(/=/g,"");
+  let bits = 0, value = 0; const bytes = [];
+  for (const c of s) { const idx = B32.indexOf(c); if (idx === -1) continue; value = (value << 5) | idx; bits += 5; if (bits >= 8) { bytes.push((value >>> (bits-8)) & 255); bits -= 8; } }
+  try { return new TextDecoder().decode(new Uint8Array(bytes)); } catch { return "[decode error]"; }
+}
+
+// ── NATO ──
+const NATO = {A:"Alpha",B:"Bravo",C:"Charlie",D:"Delta",E:"Echo",F:"Foxtrot",G:"Golf",H:"Hotel",I:"India",J:"Juliet",K:"Kilo",L:"Lima",M:"Mike",N:"November",O:"Oscar",P:"Papa",Q:"Quebec",R:"Romeo",S:"Sierra",T:"Tango",U:"Uniform",V:"Victor",W:"Whiskey",X:"X-ray",Y:"Yankee",Z:"Zulu"};
+const NATO_REV = Object.fromEntries(Object.entries(NATO).map(([k,v])=>[v.toLowerCase(),k]));
+
+// ── Leet ──
+const LEET = {a:"4",e:"3",i:"1",o:"0",t:"7",s:"5",l:"1",g:"9",b:"8"};
+const LEET_REV = {"4":"a","3":"e","1":"i","0":"o","7":"t","5":"s","9":"g","8":"b"};
+
+// ── Morse ──
+const MORSE = {A:".-",B:"-...",C:"-.-.",D:"-..",E:".",F:"..-.",G:"--.",H:"....",I:"..",J:".---",K:"-.-",L:".-..",M:"--",N:"-.",O:"---",P:".--.",Q:"--.-",R:".-.",S:"...",T:"-",U:"..-",V:"...-",W:".--",X:"-..-",Y:"-.--",Z:"--..", "0":"-----","1":".----","2":"..---","3":"...--","4":"....-","5":".....","6":"-....","7":"--...","8":"---.","9":"----.",".":".-.-.-",",":"--..--","?":"..--..","!":"-.-.--","/":"-..-."," ":"/"};
+const MORSE_REV = Object.fromEntries(Object.entries(MORSE).map(([k,v])=>[v,k]));
+
+// ── Pig Latin ──
+function pigEncode(word) {
+  const lower = word.toLowerCase();
+  const m = lower.match(/^([^aeiou]*)([aeiou].*)$/);
+  if (!m) return word;
+  const [,cons,rest] = m;
+  if (!cons) return word + "way";
+  const isUp = word[0] === word[0].toUpperCase() && word[0] !== word[0].toLowerCase();
+  return (isUp ? rest[0].toUpperCase() + rest.slice(1) : rest) + cons.toLowerCase() + "ay";
+}
+function pigDecode(word) {
+  if (word.endsWith("way")) return word.slice(0,-3);
+  const m = word.match(/^(.+?)([^aeiou]+)ay$/i);
+  if (!m) return word;
+  const [,body,cons] = m;
+  return cons + body;
+}
+
+// ── Encodings ──
+const encodings = [
+  { name:"Base64", description:"Binary-to-text using 64 printable characters", color:"#3b82f6", category:"Common",
+    encode: i => { try { return btoa(unescape(encodeURIComponent(i))); } catch { return "[error]"; } },
+    decode: i => { try { return decodeURIComponent(escape(atob(i.trim()))); } catch { return "[decode error]"; } } },
+  { name:"Base64 URL-safe", description:"Base64 safe for URLs", color:"#2563eb", category:"Common",
+    encode: i => { try { return btoa(unescape(encodeURIComponent(i))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=/g,""); } catch { return "[error]"; } },
+    decode: i => { try { const p=i.replace(/-/g,"+").replace(/_/g,"/"); return decodeURIComponent(escape(atob(p+"==".slice((p.length*6&3)?0:2)))); } catch { return "[decode error]"; } } },
+  { name:"Base32", description:"Base32 encoding (RFC 4648)", color:"#1d4ed8", category:"Common",
+    encode: i => base32Encode(i), decode: i => base32Decode(i) },
+  { name:"URL Encoding", description:"Percent-encodes characters for URLs", color:"#0ea5e9", category:"Common",
+    encode: i => encodeURIComponent(i),
+    decode: i => { try { return decodeURIComponent(i); } catch { return "[decode error]"; } } },
+  { name:"HTML Entities", description:"Encodes characters as HTML entities", color:"#06b6d4", category:"Common",
+    encode: i => i.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;").replace(/[^\x00-\x7F]/g,c=>`&#${c.charCodeAt(0)};`),
+    decode: i => { const ta=document.createElement("textarea"); ta.innerHTML=i; return ta.value; } },
+  { name:"ROT13", description:"Rotate letters by 13 (self-inverse)", color:"#8b5cf6", category:"Cipher",
+    encode: i => i.replace(/[a-zA-Z]/g,c=>{const b=c<="Z"?65:97;return String.fromCharCode(((c.charCodeAt(0)-b+13)%26)+b);}),
+    decode: i => i.replace(/[a-zA-Z]/g,c=>{const b=c<="Z"?65:97;return String.fromCharCode(((c.charCodeAt(0)-b+13)%26)+b);}) },
+  { name:"Caesar Cipher", description:"Classic letter shift cipher", color:"#7c3aed", category:"Cipher",
+    params:[{key:"shift",label:"Shift",type:"select",options:Array.from({length:25},(_,i)=>({label:String(i+1),value:i+1})),default:3}],
+    encode: (i,p) => { const s=Number(p.shift||3); return i.replace(/[a-zA-Z]/g,c=>{const b=c<="Z"?65:97;return String.fromCharCode(((c.charCodeAt(0)-b+s)%26)+b);}); },
+    decode: (i,p) => { const s=26-Number(p.shift||3); return i.replace(/[a-zA-Z]/g,c=>{const b=c<="Z"?65:97;return String.fromCharCode(((c.charCodeAt(0)-b+s)%26)+b);}); } },
+  { name:"Vigenère", description:"Polyalphabetic cipher using a keyword", color:"#a855f7", category:"Cipher",
+    params:[{key:"key",label:"Key",type:"text",default:"KEY"}],
+    encode: (i,p) => { const key=(String(p.key||"KEY")).toUpperCase().replace(/[^A-Z]/g,"")||"A"; let ki=0; return i.replace(/[a-zA-Z]/g,c=>{const b=c<="Z"?65:97;const s=key.charCodeAt(ki++%key.length)-65;return String.fromCharCode(((c.charCodeAt(0)-b+s)%26)+b);}); },
+    decode: (i,p) => { const key=(String(p.key||"KEY")).toUpperCase().replace(/[^A-Z]/g,"")||"A"; let ki=0; return i.replace(/[a-zA-Z]/g,c=>{const b=c<="Z"?65:97;const s=26-(key.charCodeAt(ki++%key.length)-65);return String.fromCharCode(((c.charCodeAt(0)-b+s)%26)+b);}); } },
+  { name:"Atbash", description:"Reverses the alphabet (A↔Z, self-inverse)", color:"#d946ef", category:"Cipher",
+    encode: i => i.replace(/[a-zA-Z]/g,c=>{const b=c<="Z"?65:97;return String.fromCharCode(b+25-(c.charCodeAt(0)-b));}),
+    decode: i => i.replace(/[a-zA-Z]/g,c=>{const b=c<="Z"?65:97;return String.fromCharCode(b+25-(c.charCodeAt(0)-b));}) },
+  { name:"ROT47", description:"Rotates printable ASCII characters", color:"#ec4899", category:"Cipher",
+    params:[{key:"shift",label:"Shift",type:"select",options:Array.from({length:93},(_,i)=>({label:String(i+1),value:i+1})),default:47}],
+    encode: (i,p) => { const s=Number(p.shift||47); return i.replace(/[!-~]/g,c=>String.fromCharCode(((c.charCodeAt(0)-33+s)%94)+33)); },
+    decode: (i,p) => { const s=94-Number(p.shift||47); return i.replace(/[!-~]/g,c=>String.fromCharCode(((c.charCodeAt(0)-33+s)%94)+33)); } },
+  { name:"XOR Cipher", description:"XOR each byte with a repeating key", color:"#f43f5e", category:"Cipher",
+    params:[{key:"key",label:"Key",type:"text",default:"KEY"}],
+    encode: (i,p) => { const key=String(p.key||"KEY"); return Array.from(new TextEncoder().encode(i)).map((b,n)=>(b^key.charCodeAt(n%key.length)).toString(16).padStart(2,"0")).join(" "); },
+    decode: (i,p) => { const key=String(p.key||"KEY"); const bytes=i.trim().split(/\s+/).map(h=>parseInt(h,16)).filter(n=>!isNaN(n)); try{return new TextDecoder().decode(new Uint8Array(bytes.map((b,n)=>b^key.charCodeAt(n%key.length))));}catch{return "[decode error]";} } },
+  { name:"Hexadecimal", description:"Each byte as hex", color:"#10b981", category:"Binary",
+    encode: i => Array.from(new TextEncoder().encode(i)).map(b=>b.toString(16).padStart(2,"0")).join(" "),
+    decode: i => { try{return new TextDecoder().decode(new Uint8Array(i.trim().split(/\s+/).map(h=>parseInt(h,16))));}catch{return "[decode error]";} } },
+  { name:"Binary", description:"Each byte as 8-bit binary", color:"#059669", category:"Binary",
+    encode: i => Array.from(new TextEncoder().encode(i)).map(b=>b.toString(2).padStart(8,"0")).join(" "),
+    decode: i => { try{return new TextDecoder().decode(new Uint8Array(i.trim().split(/\s+/).map(b=>parseInt(b,2))));}catch{return "[decode error]";} } },
+  { name:"Octal", description:"Each byte as octal (base-8)", color:"#16a34a", category:"Binary",
+    encode: i => Array.from(new TextEncoder().encode(i)).map(b=>b.toString(8).padStart(3,"0")).join(" "),
+    decode: i => { try{return new TextDecoder().decode(new Uint8Array(i.trim().split(/\s+/).map(b=>parseInt(b,8))));}catch{return "[decode error]";} } },
+  { name:"Decimal", description:"Each byte as a decimal number", color:"#15803d", category:"Binary",
+    encode: i => Array.from(new TextEncoder().encode(i)).map(b=>b.toString(10)).join(" "),
+    decode: i => { try{return new TextDecoder().decode(new Uint8Array(i.trim().split(/\s+/).map(Number)));}catch{return "[decode error]";} } },
+  { name:"Reverse", description:"Reverses the entire string", color:"#f97316", category:"Transform",
+    encode: i => Array.from(i).reverse().join(""), decode: i => Array.from(i).reverse().join("") },
+  { name:"Leet Speak", description:"Replaces letters with similar-looking numbers", color:"#ea580c", category:"Transform",
+    encode: i => i.replace(/[aeiostlgb]/gi,c=>LEET[c.toLowerCase()]||c),
+    decode: i => i.replace(/[430715983]/g,c=>LEET_REV[c]||c) },
+  { name:"Pig Latin", description:"Classic word-game language transformation", color:"#dc2626", category:"Transform",
+    encode: i => i.replace(/\b([a-zA-Z]+)\b/g,w=>pigEncode(w)),
+    decode: i => i.replace(/\b([a-zA-Z]+(?:way|[^aeiou]+ay))\b/gi,w=>pigDecode(w)) },
+  { name:"Letter Numbers", description:"Replace letters with position (A=1, B=2…)", color:"#b45309", category:"Transform",
+    encode: i => i.toUpperCase().replace(/[A-Z]/g,c=>`[${c.charCodeAt(0)-64}]`),
+    decode: i => i.replace(/\[(\d+)\]/g,(_,n)=>{const num=Number(n);return num>=1&&num<=26?String.fromCharCode(64+num):_;}) },
+  { name:"NATO Phonetic", description:"Spell out letters using NATO alphabet", color:"#92400e", category:"Transform",
+    encode: i => i.toUpperCase().split("").map(c=>NATO[c]||c).join(" "),
+    decode: i => i.split(/\s+/).map(w=>NATO_REV[w.toLowerCase()]||w).join("") },
+  { name:"Morse Code", description:"International Morse representation", color:"#f59e0b", category:"Other",
+    encode: i => i.toUpperCase().split("").map(c=>MORSE[c]||"?").join(" "),
+    decode: i => i.split(" / ").map(word=>word.trim().split(" ").map(sym=>MORSE_REV[sym]||"?").join("")).join(" ") },
+  { name:"Unicode Escape", description:"JS-style \\uXXXX sequences", color:"#ef4444", category:"Other",
+    encode: i => Array.from(i).map(c=>`\\u${c.charCodeAt(0).toString(16).padStart(4,"0")}`).join(""),
+    decode: i => { try{return i.replace(/\\u([0-9a-fA-F]{4})/g,(_,h)=>String.fromCharCode(parseInt(h,16)));}catch{return "[decode error]";} } },
+];
+
+const CATEGORIES = ["Common","Cipher","Binary","Transform","Other"];
+
+function uid() { return Math.random().toString(36).slice(2,10); }
+function defaultParams(enc) { const out={}; for (const p of enc.params||[]) out[p.key]=p.default; return out; }
+function trunc(s,n=36) { return s.length>n?s.slice(0,n)+"…":s; }
+
+// ── Icons ──
+function TrashIcon() { return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>; }
+function CopyIcon() { return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>; }
+function CheckIcon() { return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>; }
+function DragHandle() { return <svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor" opacity="0.5">{[0,6,12].map(y=><g key={y}><circle cx="2.5" cy={y+2} r="1.3"/><circle cx="7.5" cy={y+2} r="1.3"/></g>)}</svg>; }
+
+// ── ChainBlockItem ──
+function ChainBlockItem({ block, index, stageInput, stageOutput, isDropTarget, dropPosition, onRemove, onParamChange, onModeToggle, onDragStart, onDragOver }) {
+  const enc = encodings.find(e => e.name === block.encodingName);
+  if (!enc) return null;
+  const canDecode = !!enc.decode;
+  const isDecode = block.mode === "decode";
+  return (
+    <div
+      className={`chain-slot ${isDropTarget&&dropPosition==="before"?"drop-before":""} ${isDropTarget&&dropPosition==="after"?"drop-after":""}`}
+      onDragOver={e => onDragOver(e, index)}
+    >
+      <div
+        className="chain-block-item"
+        style={{"--c": enc.color}}
+        draggable
+        onDragStart={e => onDragStart(e, index)}
+      >
+        <div className="chain-tab" />
+        <div className="chain-block-body">
+          <span className="chain-drag-handle"><DragHandle /></span>
+          <button
+            className={`mode-toggle ${isDecode?"dec":"enc"} ${!canDecode?"no-decode":""}`}
+            onClick={() => canDecode && onModeToggle(block.id)}
+            title={canDecode?(isDecode?"Switch to Encode":"Switch to Decode"):"Decode not available"}
+            disabled={!canDecode}
+          >
+            <span className="mode-toggle-enc">ENC</span>
+            <span className="mode-toggle-dec">DEC</span>
+          </button>
+          <span className="chain-block-name">{enc.name}</span>
+          {(enc.params||[]).map(p => (
+            <span key={p.key} className="chain-param">
+              <span className="chain-param-label">{p.label}</span>
+              {p.type==="select" ? (
+                <select className="chain-param-select" value={block.params[p.key]} onChange={e=>onParamChange(block.id,p.key,Number(e.target.value)||e.target.value)} onMouseDown={e=>e.stopPropagation()}>
+                  {(p.options||[]).map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              ) : (
+                <input className={p.type==="text"?"chain-param-text":"chain-param-number"} type={p.type} value={String(block.params[p.key]!=null?block.params[p.key]:p.default)} onChange={e=>onParamChange(block.id,p.key,p.type==="text"?e.target.value:Number(e.target.value))} onMouseDown={e=>e.stopPropagation()} maxLength={32} />
+              )}
+            </span>
+          ))}
+          <button className="chain-remove-btn" onClick={()=>onRemove(block.id)} title="Remove"><TrashIcon /></button>
+        </div>
+        {stageInput && (
+          <div className="chain-preview">
+            <span className="chain-preview-in">{trunc(stageInput)}</span>
+            <span className="chain-preview-arrow">{isDecode?"←":"→"}</span>
+            <span className="chain-preview-out">{trunc(stageOutput)}</span>
+          </div>
+        )}
+        <div className="chain-notch" />
+      </div>
+    </div>
+  );
+}
+
+// ── PaletteBlock ──
+function PaletteBlock({ enc, onDragStart }) {
+  return (
+    <button
+      className="palette-block"
+      style={{"--c": enc.color}}
+      draggable
+      onDragStart={e => onDragStart(e, enc.name)}
+      title={enc.description}
+    >
+      {enc.name}
+    </button>
+  );
+}
+
+// ── App ──
+function App() {
+  const [input, setInput] = useState("");
+  const [chain, setChain] = useState([]);
+  const [dropTarget, setDropTarget] = useState(null);
+  const [droppingOnZone, setDroppingOnZone] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const chainZoneRef = useRef(null);
+
+  const stages = useMemo(() => {
+    const result = [input];
+    for (const block of chain) {
+      const enc = encodings.find(e => e.name === block.encodingName);
+      if (enc) {
+        const prev = result[result.length-1];
+        const fn = block.mode==="decode" ? (enc.decode||enc.encode) : enc.encode;
+        result.push(prev ? fn(prev, block.params) : "");
+      }
+    }
+    return result;
+  }, [input, chain]);
+
+  const output = stages[stages.length-1] || "";
+
+  const handleParamChange = useCallback((id,key,value) => {
+    setChain(prev=>prev.map(b=>b.id===id?{...b,params:{...b.params,[key]:value}}:b));
+  }, []);
+
+  const handleRemove = useCallback(id => {
+    setChain(prev=>prev.filter(b=>b.id!==id));
+  }, []);
+
+  const handleModeToggle = useCallback(id => {
+    setChain(prev=>prev.map(b=>b.id===id?{...b,mode:b.mode==="encode"?"decode":"encode"}:b));
+  }, []);
+
+  const handlePaletteDragStart = useCallback((e, name) => {
+    e.dataTransfer.setData("type","palette");
+    e.dataTransfer.setData("name",name);
+    e.dataTransfer.effectAllowed = "copy";
+  }, []);
+
+  const handleChainDragStart = useCallback((e, index) => {
+    e.dataTransfer.setData("type","chain");
+    e.dataTransfer.setData("index",String(index));
+    e.dataTransfer.effectAllowed = "move";
+  }, []);
+
+  const handleChainBlockDragOver = useCallback((e, index) => {
+    e.preventDefault(); e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const position = e.clientY < rect.top+rect.height/2 ? "before" : "after";
+    setDropTarget({index,position});
+    setDroppingOnZone(false);
+  }, []);
+
+  const handleZoneDragOver = useCallback(e => {
+    e.preventDefault();
+    setDroppingOnZone(true);
+    setDropTarget(null);
+  }, []);
+
+  const handleDragLeave = useCallback(e => {
+    if (!chainZoneRef.current?.contains(e.relatedTarget)) {
+      setDropTarget(null); setDroppingOnZone(false);
+    }
+  }, []);
+
+  const handleDrop = useCallback(e => {
+    e.preventDefault();
+    const type = e.dataTransfer.getData("type");
+    let insertAt = chain.length;
+    if (dropTarget !== null) insertAt = dropTarget.position==="before" ? dropTarget.index : dropTarget.index+1;
+    if (type==="palette") {
+      const name = e.dataTransfer.getData("name");
+      const enc = encodings.find(e=>e.name===name);
+      if (enc) {
+        setChain(prev=>{const next=[...prev];next.splice(insertAt,0,{id:uid(),encodingName:name,params:defaultParams(enc),mode:"encode"});return next;});
+      }
+    } else if (type==="chain") {
+      const fromIndex = Number(e.dataTransfer.getData("index"));
+      setChain(prev=>{const next=[...prev];const [moved]=next.splice(fromIndex,1);const adj=insertAt>fromIndex?insertAt-1:insertAt;next.splice(adj,0,moved);return next;});
+    }
+    setDropTarget(null); setDroppingOnZone(false);
+  }, [chain.length, dropTarget]);
+
+  const handleDragEnd = useCallback(() => { setDropTarget(null); setDroppingOnZone(false); }, []);
+
+  const handleCopy = () => {
+    if (!output) return;
+    navigator.clipboard.writeText(output).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),1500);});
+  };
+
+  const lastEnc = chain.length>0 ? encodings.find(e=>e.name===chain[chain.length-1].encodingName) : null;
+  const outputDotColor = lastEnc?.color || "#6c8ef5";
+
+  return (
+    <main className="page" onDragEnd={handleDragEnd}>
+      <header className="page-header">
+        <div className="logo-row">
+          <div className="logo-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>
+            </svg>
+          </div>
+          <div>
+            <h1 className="site-title">Message Encoder</h1>
+            <p className="site-subtitle">Drag encoding blocks into the pipeline — toggle ENC/DEC on each block</p>
+          </div>
+        </div>
+      </header>
+
+      <section className="pipeline-row">
+        <div className="io-panel input-panel">
+          <div className="panel-label"><span className="panel-dot" style={{background:"#6c8ef5"}}/>Input</div>
+          <textarea className="io-textarea" placeholder="Type or paste your message here..." value={input} onChange={e=>setInput(e.target.value)} spellCheck={false}/>
+          <div className="panel-footer">
+            <span className="char-count">{input.length} chars</span>
+            {input && <button className="clear-btn" onClick={()=>setInput("")}>Clear</button>}
+          </div>
+        </div>
+
+        <div className="flow-arrow">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" opacity="0.35">
+            <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+          </svg>
+        </div>
+
+        <div
+          ref={chainZoneRef}
+          className={`chain-zone ${droppingOnZone&&chain.length===0?"drop-active":""} ${chain.length===0?"empty":""}`}
+          onDragOver={handleZoneDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          <div className="chain-zone-label">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/>
+              <line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/>
+            </svg>
+            Pipeline
+            {chain.length > 0 && <span className="chain-count">{chain.length}</span>}
+          </div>
+          {chain.length === 0 ? (
+            <div className="chain-empty-state">
+              <div className="chain-empty-icon">
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.3">
+                  <rect x="2" y="7" width="8" height="10" rx="2"/><rect x="9" y="7" width="8" height="10" rx="2"/><rect x="16" y="7" width="6" height="10" rx="2"/>
+                </svg>
+              </div>
+              <p>Drag blocks here</p>
+              <p className="chain-empty-sub">Chain multiple encodings or decodings</p>
+            </div>
+          ) : (
+            <div className="chain-blocks">
+              {chain.map((block, index) => (
+                <ChainBlockItem
+                  key={block.id}
+                  block={block}
+                  index={index}
+                  stageInput={stages[index]}
+                  stageOutput={stages[index+1]||""}
+                  isDropTarget={dropTarget?.index===index}
+                  dropPosition={dropTarget?.index===index?dropTarget.position:null}
+                  onRemove={handleRemove}
+                  onParamChange={handleParamChange}
+                  onModeToggle={handleModeToggle}
+                  onDragStart={handleChainDragStart}
+                  onDragOver={handleChainBlockDragOver}
+                />
+              ))}
+              <div
+                className={`chain-end-drop ${droppingOnZone?"active":""}`}
+                onDragOver={e=>{e.preventDefault();e.stopPropagation();setDroppingOnZone(true);setDropTarget(null);}}
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="flow-arrow">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" opacity="0.35">
+            <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+          </svg>
+        </div>
+
+        <div className="io-panel output-panel">
+          <div className="panel-label">
+            <span className="panel-dot" style={{background:outputDotColor,transition:"background 0.2s"}}/>
+            Output
+            {chain.length===0 && <span className="panel-hint"> — add a block</span>}
+          </div>
+          <div className="io-output">
+            {output
+              ? <code className="output-code">{output}</code>
+              : <span className="output-placeholder">{chain.length===0?"Add encoding blocks to the pipeline":"Type a message to see output"}</span>
+            }
+          </div>
+          <div className="panel-footer">
+            <span className="char-count">{output.length} chars</span>
+            <button className={`copy-btn ${copied?"copied":""} ${!output?"disabled":""}`} onClick={handleCopy} disabled={!output}>
+              {copied?<CheckIcon/>:<CopyIcon/>}
+              {copied?"Copied!":"Copy"}
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section className="palette-section">
+        <div className="palette-header">
+          <h2 className="palette-title">Encoding Blocks</h2>
+          <p className="palette-hint">Drag into the pipeline — toggle ENC / DEC on each block</p>
+        </div>
+        {CATEGORIES.map(cat => {
+          const group = encodings.filter(e => e.category === cat);
+          return (
+            <div key={cat} className="palette-group">
+              <div className="palette-group-label">{cat}</div>
+              <div className="palette-row">
+                {group.map(enc => <PaletteBlock key={enc.name} enc={enc} onDragStart={handlePaletteDragStart}/>)}
+              </div>
+            </div>
+          );
+        })}
+      </section>
+    </main>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
